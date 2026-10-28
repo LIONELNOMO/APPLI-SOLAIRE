@@ -6,7 +6,7 @@
 # Les secrets (mot de passe, URL de la base) ne figurent pas ici : ils
 # se posent avec `fly secrets set`, qui les chiffre.
 
-app = "dimsolaire"
+app = "appli-solaire"
 primary_region = "cdg"   # Paris : la plus proche du Cameroun
 
 [build]
