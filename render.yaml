@@ -1,0 +1,39 @@
+# Déploiement Render — un seul service web : FastAPI sert l'API et
+# l'interface compilée, donc une seule origine et aucun réglage CORS.
+#
+# Render lit ce fichier à la création du service (« Blueprint »). Les
+# valeurs marquées `sync: false` sont à saisir dans l'interface : elles
+# ne doivent pas figurer dans le dépôt.
+
+services:
+  - type: web
+    name: dimsolaire
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    plan: free
+    region: frankfurt
+    healthCheckPath: /api/v1/health
+    envVars:
+      - key: DIMSOLAIRE_MODE
+        value: web
+
+      - key: DIMSOLAIRE_STATIC_DIR
+        value: /app/static
+
+      # Mot de passe partagé, demandé par le navigateur à l'ouverture.
+      # À saisir dans l'onglet « Environment » du service.
+      - key: DIMSOLAIRE_MOT_DE_PASSE
+        sync: false
+
+      # Fournie automatiquement par la base ci-dessous.
+      - key: DATABASE_URL
+        fromDatabase:
+          name: dimsolaire-db
+          property: connectionString
+
+databases:
+  - name: dimsolaire-db
+    databaseName: dimsolaire
+    plan: free
+    region: frankfurt

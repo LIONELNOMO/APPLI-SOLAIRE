@@ -1,0 +1,183 @@
+name: Intégration continue
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+    branches: [main]
+
+env:
+  PYTHON_VERSION: "3.12"
+  NODE_VERSION: "22"
+
+jobs:
+  moteur:
+    name: Moteur de calcul
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: backend/pyproject.toml
+
+      - name: Installation
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Lint
+        run: ruff check app/ tests/
+
+      - name: Formatage
+        run: ruff format --check app/ tests/
+
+      - name: Typage du moteur
+        # Le moteur est en mode strict ; les couches API et base le sont moins.
+        run: mypy app/engine/
+
+      - name: Tests et couverture
+        run: |
+          pytest -q --cov=app/engine --cov-report=term-missing \
+                    --cov-report=xml --cov-fail-under=90
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: couverture
+          path: backend/coverage.xml
+
+  interface:
+    name: Interface
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Installation
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typage et construction
+        run: npm run build
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: interface
+          path: frontend/dist
+
+  image-web:
+    name: Image web
+    runs-on: ubuntu-latest
+    needs: [moteur, interface]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Construction de l'image
+        run: docker build -t dimsolaire:ci .
+
+      - name: Vérification du démarrage
+        run: |
+          docker run -d --name essai -p 8000:8000 \
+            -e DIMSOLAIRE_MODE=web \
+            -e DATABASE_URL=sqlite:////tmp/essai.db \
+            dimsolaire:ci
+          for essai in $(seq 1 40); do
+            if curl -fsS http://127.0.0.1:8000/api/v1/health > /dev/null; then
+              echo "Moteur prêt."
+              break
+            fi
+            sleep 1
+          done
+          curl -fsS http://127.0.0.1:8000/api/v1/health
+          # L'interface doit être servie à la racine.
+          curl -fsS http://127.0.0.1:8000/ | grep -q DimSolaire
+          echo "Interface servie."
+
+      - name: Journal en cas d'échec
+        if: failure()
+        run: docker logs essai
+
+      - name: Arrêt
+        if: always()
+        run: docker rm -f essai || true
+
+  version-pc:
+    name: Version PC (Windows)
+    runs-on: windows-latest
+    needs: [moteur, interface]
+    # Construite seulement sur étiquette : la compilation Rust est longue.
+    if: startsWith(github.ref, 'refs/tags/v')
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: frontend/src-tauri
+
+      - name: Environnement Python
+        working-directory: backend
+        run: |
+          python -m venv .venv
+          .venv\Scripts\python.exe -m pip install --upgrade pip
+          .venv\Scripts\python.exe -m pip install -e ".[dev]" pyinstaller pillow
+
+      - name: Compilation du moteur
+        run: .\scripts\build_sidecar.ps1
+        shell: pwsh
+
+      - name: Dépendances de l'interface
+        working-directory: frontend
+        run: npm ci
+
+      - name: Installateurs Tauri
+        working-directory: frontend
+        run: npx tauri build
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: installateurs-windows
+          path: |
+            frontend/src-tauri/target/release/bundle/nsis/*.exe
+            frontend/src-tauri/target/release/bundle/msi/*.msi
+
+      - name: Publication dans la version
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            frontend/src-tauri/target/release/bundle/nsis/*.exe
+            frontend/src-tauri/target/release/bundle/msi/*.msi
+          body: |
+            Installateurs Windows de DimSolaire.
+
+            Le runtime WebView2 est téléchargé à l'installation. Pour les
+            postes sans connexion, utiliser la variante hors ligne décrite
+            dans ARCHITECTURE.md (§13.2).

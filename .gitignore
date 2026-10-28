@@ -1,0 +1,44 @@
+# Dépendances
+node_modules/
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+
+# Constructions
+frontend/dist/
+frontend/src-tauri/target/
+backend/build/
+backend/dist/
+*.egg-info/
+
+# Base de données locale
+*.db
+*.sqlite
+*.sqlite3
+
+# Secrets
+.env
+.env.local
+*.key
+
+# Journaux
+*.log
+logs/
+
+# Outils
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Système
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Éditeurs
+.vscode/
+.idea/
+*.swp

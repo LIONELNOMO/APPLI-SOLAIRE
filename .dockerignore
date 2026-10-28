@@ -1,0 +1,52 @@
+# Dépendances reconstruites dans l'image
+node_modules/
+**/node_modules/
+.venv/
+**/.venv/
+__pycache__/
+**/__pycache__/
+*.py[cod]
+
+# Artéfacts de construction
+dist/
+**/dist/
+build/
+**/build/
+*.egg-info/
+backend/dist/
+backend/build/
+frontend/src-tauri/target/
+frontend/src-tauri/binaries/
+
+# Bases de données locales
+*.db
+*.db-journal
+*.sqlite3
+
+# Outils et caches
+.git/
+.github/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+htmlcov/
+.coverage
+.vscode/
+.idea/
+
+# La version PC ne concerne pas l'image web
+scripts/
+*.bat
+*.ps1
+backend/dimsolaire-api.spec
+backend/run_server.py
+backend/verif_sidecar.py
+backend/verif_autonome.py
+backend/verif.py
+backend/simulation.py
+
+# Documentation et secrets
+*.md
+!backend/README.md
+.env
+.env.*

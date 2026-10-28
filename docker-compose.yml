@@ -1,0 +1,52 @@
+# Version web de DimSolaire, pour un VPS.
+#
+# AVERTISSEMENT : l'authentification par comptes utilisateurs est prévue
+# en phase 6 et n'est pas écrite. Ne pas exposer ce service sur internet
+# avant qu'elle le soit : l'API serait ouverte à tous.
+# Pour un essai, garder le port lié à 127.0.0.1 comme ci-dessous.
+#
+# Avant le premier démarrage, créer un fichier .env contenant :
+#   POSTGRES_PASSWORD=...
+#   DIMSOLAIRE_SECRET_KEY=...
+#   DIMSOLAIRE_CORS=https://votre-domaine
+#
+# Puis :  docker compose up -d --build
+#         docker compose exec api alembic upgrade head
+
+services:
+  api:
+    build: .
+    image: dimsolaire:1.0.0
+    restart: unless-stopped
+    ports:
+      # Lié à la boucle locale : un proxy inverse (Caddy, Nginx) se charge
+      # du HTTPS et de l'exposition publique.
+      - "127.0.0.1:8000:8000"
+    environment:
+      DIMSOLAIRE_MODE: web
+      DIMSOLAIRE_STATIC_DIR: /app/static
+      DATABASE_URL: >-
+        postgresql+psycopg://dimsolaire:${POSTGRES_PASSWORD:?mot de passe requis}@base:5432/dimsolaire
+      DIMSOLAIRE_SECRET_KEY: ${DIMSOLAIRE_SECRET_KEY:?clé secrète requise}
+      DIMSOLAIRE_CORS: ${DIMSOLAIRE_CORS:-http://localhost:8000}
+    depends_on:
+      base:
+        condition: service_healthy
+
+  base:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: dimsolaire
+      POSTGRES_USER: dimsolaire
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?mot de passe requis}
+    volumes:
+      - donnees:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dimsolaire -d dimsolaire"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  donnees:
