@@ -1,0 +1,40 @@
+# Déploiement Fly.io — second hébergement, en secours de Render.
+#
+# Un seul service : FastAPI sert l'API et l'interface compilée, donc
+# une seule origine et aucun réglage de requêtes croisées.
+#
+# Les secrets (mot de passe, URL de la base) ne figurent pas ici : ils
+# se posent avec `fly secrets set`, qui les chiffre.
+
+app = "dimsolaire"
+primary_region = "cdg"   # Paris : la plus proche du Cameroun
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  DIMSOLAIRE_MODE = "web"
+  DIMSOLAIRE_STATIC_DIR = "/app/static"
+  PORT = "8080"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+
+  # L'essai gratuit ne compte que les heures où la machine tourne :
+  # l'arrêt automatique préserve le crédit. Le réveil prend quelques
+  # secondes, bien moins que les quarante secondes de Render.
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
+
+  [[http_service.checks]]
+    interval = "30s"
+    timeout = "5s"
+    grace_period = "20s"
+    method = "GET"
+    path = "/api/v1/health"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"
